@@ -307,8 +307,8 @@ const DEFAULT_EVENTS=()=>[
 const DEFAULT_PENDING=[{id:"p1",title:"ريادة وابتكار",hint:"يوم ثلاثاء"},{id:"p2",title:"أخلاقيات المهنة",hint:"يوم خميس"},{id:"p3",title:"تحقق من جودة البرمجيات",hint:"يوم سبت"}];
 const range=(a,b)=>{const r=[];for(let i=a;i<=b;i++)r.push(i);return r};
 const DEFAULT_HIFZ=[
- {id:"g1",title:"المجموعة الأولى",test:"اختبار الجزء (فصلت وغافر والزمر)",surahs:[["فصلت",range(477,482)],["غافر",range(467,476)],["الزمر",range(458,467)]]},
- {id:"g2",title:"المجموعة الثانية",test:"اختبار الجزء (ص والصافات ويس)",surahs:[["ص",range(453,458)],["الصافات",range(446,452)],["يس",range(440,445)]]}];
+ {id:"g1",title:"المجموعة الأولى",test:"اختبار الجزء (فصلت وغافر والزمر)",surahs:[{n:"فصلت",p:range(477,482)},{n:"غافر",p:range(467,476)},{n:"الزمر",p:range(458,467)}]},
+ {id:"g2",title:"المجموعة الثانية",test:"اختبار الجزء (ص والصافات ويس)",surahs:[{n:"ص",p:range(453,458)},{n:"الصافات",p:range(446,452)},{n:"يس",p:range(440,445)}]}];
 const C=(id,name,unit,total,o)=>Object.assign({id,name,unit,total,group:"",prio:2,target:[],release:null},o||{});
 const DEFAULT_COURSES=[
  C("c2crec","المحاضرات المسجّلة المتراكمة","محاضرة",5,{group:"C2C",prio:1}),
@@ -318,20 +318,25 @@ const DEFAULT_COURSES=[
  C("taqat-li","LinkedIn (فيديو ساعتين)","فيديو",1,{group:"طاقات"}),
  C("gd-ux","UX/UI","وحدة",5,{group:"GoDigitalForPalestine",prio:3}),
  C("gd-dm","Digital Marketing","وحدة",5,{group:"GoDigitalForPalestine",prio:3})];
-const WIRD=[["2026-10-31",29,"تبارك"],["2026-11-07",28,"قد سمع"],["2026-11-14",27,"الذاريات"],["2026-11-21",26,"الأحقاف"]];
+const WIRD=[{d:"2026-10-31",j:29,n:"تبارك"},{d:"2026-11-07",j:28,n:"قد سمع"},{d:"2026-11-14",j:27,n:"الذاريات"},{d:"2026-11-21",j:26,n:"الأحقاف"}];
 function mkDefault(){return {v:11,habits:JSON.parse(JSON.stringify(DEFAULT_HABITS)),checks:{},events:DEFAULT_EVENTS(),attend:{},pending:DEFAULT_PENDING.slice(),tasks:[],goals:{},
   hifz:{groups:JSON.parse(JSON.stringify(DEFAULT_HIFZ)),done:{},tests:{}},courses:JSON.parse(JSON.stringify(DEFAULT_COURSES)),units:{"fwd:1":"2026-10-31","fwd:2":"2026-10-31","fwd:3":"2026-10-31"},wird:WIRD.slice(),challenge:{title:"",start:"2026-11-01",days:{}},periods:[{from:"2026-11-01",to:null}],fix1:true,legacy:null}}
 let showPast=false,S=mkDefault(),view="habits",weekOff=0,calOff=0,calSel=null,meetOff=0,meetCat="all",goalOff=0,EDIT=null,editHabits=false,CONF=null,ref=null,saving=false,pending=false,timer=null,lastUndo=null;
 
 /* ---------- storage ---------- */
 function local(set){try{if(set)localStorage.setItem("nour-planner-v11",JSON.stringify(S));else{const v=localStorage.getItem("nour-planner-v11");return v?JSON.parse(v):null}}catch(e){return null}}
-function norm(o){const d=mkDefault();if(!o||typeof o!=="object")return d;for(const k in d)if(o[k]!==undefined&&o[k]!==null)d[k]=o[k];return d}
+function norm(o){const d=mkDefault();if(!o||typeof o!=="object")return d;for(const k in d)if(o[k]!==undefined&&o[k]!==null)d[k]=o[k];
+  (d.hifz.groups||[]).forEach(g=>{g.surahs=(g.surahs||[]).map(x=>Array.isArray(x)?{n:x[0],p:x[1]}:x)});
+  d.wird=(d.wird||[]).map(x=>Array.isArray(x)?{d:x[0],j:x[1],n:x[2]}:x);
+  d.events=(d.events||[]).map(e=>{const o={};for(const k in e)if(e[k]!==undefined)o[k]=e[k];return o});
+  return d}
 function save(){local(true);if(!ref)return;clearTimeout(timer);timer=setTimeout(flush,600)}
 async function flush(){if(!ref)return;if(saving){pending=true;return}saving=true;
-  try{await ref.set(JSON.parse(JSON.stringify(S)));setSync("محفوظ ✓")}catch(e){setSync("ما انحفظ: "+(e&&e.message||"خطأ")+" · محفوظ على هذا الجهاز")}
+  try{await ref.set(JSON.parse(JSON.stringify(S)));setSync("محفوظ ✓")}catch(e){setSync("ما انحفظ: "+(e&&e.message||"خطأ")+" · محفوظ على هذا الجهاز");toast("⚠ ما انحفظ على حسابك، جرّبي كمان شوي")}
   saving=false;if(pending){pending=false;flush()}}
 let SYNC="";const setSync=t=>{SYNC=t;const el=$("sync");if(el)el.textContent=t};
 {const L=local(false);if(L&&L.v===11)S=fixup(norm(L))}
+window.__S=()=>S;
 
 /* ---------- migration from older versions ---------- */
 function migrate(old){
@@ -355,9 +360,9 @@ const isPeriod=k=>(S.periods||[]).some(p=>p.from<=k&&k<=(p.to||TODAY()));
 const activeOn=(h,k)=>(h.days||ALL).includes(dow(k))&&!(h.prayer&&isPeriod(k));
 const isDone=(h,k)=>!!(S.checks[k]&&S.checks[k][h.id]);
 function dayScore(k){const hs=S.habits.filter(h=>activeOn(h,k));const d=hs.filter(h=>isDone(h,k)).length;return {d,t:hs.length,p:hs.length?d/hs.length:0}}
-function wirdFor(k){const w=S.wird||[];let cur=null;w.forEach(x=>{if(x[0]<=k)cur=x});if(!cur)return null;const last=w[w.length-1];
-  if(diffDays(last[0],k)>=7&&cur===last){const n=Math.floor(diffDays(w[0][0],k)/7)%w.length;return w[n]}return cur}
-const habitName=(h,k)=>h.wird?(()=>{const w=wirdFor(k||TODAY());return w?`ورد المراجعة · جزء ${w[1]} (${w[2]})`:h.name})():h.name;
+function wirdFor(k){const w=S.wird||[];let cur=null;w.forEach(x=>{if(x.d<=k)cur=x});if(!cur)return null;const last=w[w.length-1];
+  if(diffDays(last.d,k)>=7&&cur===last){const n=Math.floor(diffDays(w[0].d,k)/7)%w.length;return w[n]}return cur}
+const habitName=(h,k)=>h.wird?(()=>{const w=wirdFor(k||TODAY());return w?`ورد المراجعة · جزء ${w.j} (${w.n})`:h.name})():h.name;
 function occurs(e,k){if((e.skip||[]).includes(k))return false;if(k<e.date)return false;if(e.until&&k>e.until)return false;
   if(e.repeat==="none")return k===e.date;
   if(e.repeat==="weekly")return (e.days&&e.days.length?e.days:[dow(e.date)]).includes(dow(k));
@@ -480,15 +485,15 @@ function renderGoals(){
   let html=head("أهدافي","الحفظ والكورسات وأهداف الشهر");
   html+=challengeCard();
   // hifz
-  let hz="";(S.hifz.groups||[]).forEach(g=>{const pages=[...new Set(g.surahs.flatMap(s=>s[1]))];const d=pages.filter(p=>S.hifz.done[p]).length;const tdone=!!S.hifz.tests[g.id];
-    hz+=`<div class="crs din"><div class="h"><b>${esc(g.surahs.map(s=>s[0]).join(" · "))}</b><small>${d}/${pages.length} صفحة</small>${delBtn("hgroup",g.id,g.title)}</div>${confirmFor("hgroup",g.id)}<div class="pbar"><i style="width:${d/pages.length*100}%"></i></div>
-      ${g.surahs.map(([n,ps])=>`<div class="surah"><b>${esc(n)} <small class="note">${ps.filter(p=>S.hifz.done[p]).length}/${ps.length}</small></b><div class="boxes">${ps.map(p=>`<button class="box ${S.hifz.done[p]?"on":""}" data-act="hp" data-p="${p}" aria-pressed="${!!S.hifz.done[p]}" aria-label="صفحة ${p}">${p}</button>`).join("")}</div></div>`).join("")}
+  let hz="";(S.hifz.groups||[]).forEach(g=>{const pages=[...new Set(g.surahs.flatMap(s=>s.p))];const d=pages.filter(p=>S.hifz.done[p]).length;const tdone=!!S.hifz.tests[g.id];
+    hz+=`<div class="crs din"><div class="h"><b>${esc(g.surahs.map(s=>s.n).join(" · "))}</b><small>${d}/${pages.length} صفحة</small>${delBtn("hgroup",g.id,g.title)}</div>${confirmFor("hgroup",g.id)}<div class="pbar"><i style="width:${d/pages.length*100}%"></i></div>
+      ${g.surahs.map(({n,p:ps})=>`<div class="surah"><b>${esc(n)} <small class="note">${ps.filter(p=>S.hifz.done[p]).length}/${ps.length}</small></b><div class="boxes">${ps.map(p=>`<button class="box ${S.hifz.done[p]?"on":""}" data-act="hp" data-p="${p}" aria-pressed="${!!S.hifz.done[p]}" aria-label="صفحة ${p}">${p}</button>`).join("")}</div></div>`).join("")}
       <div class="goal ${tdone?"done":""}" style="--ec:var(--din)"><button class="ck ${tdone?"on":""}" style="--ec:var(--din)" data-act="htest" data-id="${g.id}" aria-pressed="${tdone}" aria-label="تم الاختبار"></button><div class="t">${esc(g.test)}</div></div></div>`});
   html+=`<div class="card din"><div class="ttl"><b style="color:var(--din)">حفظ القرآن</b><small>اضغطي على الصفحة لما تحفظيها</small></div>${hz||`<p class="empty">ما في أهداف حفظ.</p>`}
     ${isEd("hgroup","new")?`<form class="eform" data-form="hgroup"><div class="r"><input type="text" name="name" placeholder="اسم السورة" required aria-label="السورة" style="flex:1 1 120px"><label class="l">من صفحة</label><input type="number" name="a" min="1" max="604" required style="width:80px"><label class="l">لـ</label><input type="number" name="b" min="1" max="604" required style="width:80px"></div><div class="r"><input type="text" name="test" placeholder="الاختبار (اختياري)" aria-label="الاختبار" style="flex:1 1 160px"><button class="btn sm" type="submit">إضافة</button><button class="btn ghost sm" type="button" data-act="edc">إلغاء</button></div></form>`:`<button class="btn ghost sm" data-act="ed" data-type="hgroup" data-id="new">+ سورة جديدة للحفظ</button>`}</div>`;
   // wird
   const cw=wirdFor(T);
-  html+=`<div class="card din"><div class="ttl"><b style="color:var(--din)">ورد المراجعة الأسبوعي</b><small>جزء كل أسبوع، تقريه يومياً</small></div><div class="wird">${(S.wird||[]).map(w=>`<div class="${cw===w?"now":""}">جزء ${w[1]} · ${esc(w[2])}<small>من ${fmtDay(w[0])}</small></div>`).join("")}</div><p class="note" style="margin:6px 0 0">بعد الأسبوع الرابع بيرجع من الأول لحاله. وبيطلع بالعادات «ورد المراجعة» باسم جزء الأسبوع.</p></div>`;
+  html+=`<div class="card din"><div class="ttl"><b style="color:var(--din)">ورد المراجعة الأسبوعي</b><small>جزء كل أسبوع، تقريه يومياً</small></div><div class="wird">${(S.wird||[]).map(w=>`<div class="${cw===w?"now":""}">جزء ${w.j} · ${esc(w.n)}<small>من ${fmtDay(w.d)}</small></div>`).join("")}</div><p class="note" style="margin:6px 0 0">بعد الأسبوع الرابع بيرجع من الأول لحاله. وبيطلع بالعادات «ورد المراجعة» باسم جزء الأسبوع.</p></div>`;
   // courses
   const groups=[...new Set(S.courses.map(c=>c.group||""))];
   let cr="";groups.forEach(gn=>{S.courses.filter(c=>(c.group||"")===gn).sort((a,b)=>a.prio-b.prio).forEach(c=>{
@@ -561,7 +566,7 @@ function nextUnits(k,n,skip){const out=[];const cs=S.courses.slice().sort((a,b)=
 function dayPlan(k){const per=isPeriod(k),wd=dow(k),evs=eventsOn(k);const hb=id=>S.habits.find(h=>h.id===id&&activeOn(h,k));
   const H=(id,label)=>{const h=hb(id);return h?{kind:"h",id,label:label||habitName(h,k),done:isDone(h,k)}:null};
   const EV=cat=>evs.filter(e=>e.cat===cat).map(e=>({kind:"e",id:e.id,label:e.title,done:attended(e,k)}));
-  const hz=(S.hifz.groups||[]).flatMap(g=>g.surahs.flatMap(s=>s[1].map(p=>[s[0],p])));const nextP=hz.find(([n,p])=>!S.hifz.done[p]||S.hifz.done[p]===k);
+  const hz=(S.hifz.groups||[]).flatMap(g=>g.surahs.flatMap(s=>s.p.map(p=>[s.n,p])));const nextP=hz.find(([n,p])=>!S.hifz.done[p]||S.hifz.done[p]===k);
   const zoom=evs.some(e=>e.cat==="c2c");const units=nextUnits(k,zoom?1:2);
   const U=x=>x?{kind:"u",id:x.u,label:"ذاكري: "+x.label,done:S.units[x.u]===k}:null;
   const uniEv=evs.filter(e=>e.cat==="uni").map(e=>({kind:"e",id:e.id,label:"محاضرة الجامعة: "+e.title,done:attended(e,k)}));
@@ -638,7 +643,7 @@ document.addEventListener("submit",e=>{e.preventDefault();const f=e.target,fd=ne
   else if(ff==="goal"){const g=goalsArr().find(x=>x.id===f.dataset.id);if(!g||!s("title"))return;g.title=s("title");EDIT=null}
   else if(ff==="course"){const name=s("name");if(!name)return;const o={name,group:s("group"),unit:s("unit")||"محاضرة",total:Math.max(1,Math.min(80,+fd.get("total")||1)),prio:+fd.get("prio")||2};
     if(f.dataset.id==="new")S.courses.push(Object.assign({id:"c"+uid(),target:[],release:null},o));else Object.assign(S.courses.find(c=>c.id===f.dataset.id)||{},o);EDIT=null}
-  else if(ff==="hgroup"){const n=s("name"),a=+fd.get("a"),bb=+fd.get("b");if(!n||!a||!bb)return;S.hifz.groups.push({id:uid(),title:n,test:s("test")||("اختبار "+n),surahs:[[n,range(Math.min(a,bb),Math.max(a,bb))]]});EDIT=null}
+  else if(ff==="hgroup"){const n=s("name"),a=+fd.get("a"),bb=+fd.get("b");if(!n||!a||!bb)return;S.hifz.groups.push({id:uid(),title:n,test:s("test")||("اختبار "+n),surahs:[{n,p:range(Math.min(a,bb),Math.max(a,bb))}]});EDIT=null}
   else return;
   save();render();if(ff==="tadd"||ff==="gadd"){const inp=document.querySelector(`form[data-form="${ff}"] input[name=title]`);if(inp)inp.focus()}});
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{view=b.dataset.v;EDIT=null;CONF=null;editHabits=false;render();window.scrollTo(0,0);try{localStorage.setItem("np-view11",view)}catch(e){}});
