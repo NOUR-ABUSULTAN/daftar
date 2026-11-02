@@ -49,7 +49,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .icon-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .x{flex:none;border:0;background:transparent;color:var(--muted);font-size:17px;line-height:1;padding:4px 6px;border-radius:8px}
 .x.del{font-size:19px}
-input[type=text],input[type=date],input[type=time],input[type=number],select{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:7px 10px;min-width:0}
+input[type=email],input[type=password],input[type=text],input[type=date],input[type=time],input[type=number],select{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:7px 10px;min-width:0}
 .add{display:flex;flex-wrap:wrap;gap:6px}
 .add input[type=text]{flex:1 1 170px}
 .nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
@@ -246,7 +246,14 @@ details.fold>summary::-webkit-details-marker{display:none}
   <button role="tab" data-v="goals" aria-selected="false"><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg></span>أهدافي</button>
 </div></nav>
 <div class="toast" id="toast" hidden><span id="toast-msg"></span><button id="toast-undo" type="button">تراجع</button></div>
-<div class="login" id="login"><div class="card"><h2 style="margin:0 0 6px">أهلاً يا نور</h2><p>ادخلي بحساب Google عشان تنحفظ خطتك وتفتحيها من أي جهاز.</p><button class="btn" id="login-btn" type="button">دخول بحساب Google</button><p class="note" id="login-err"></p></div></div>
+<div class="login" id="login"><div class="card"><h2 style="margin:0 0 6px">أهلاً يا نور 🌿</h2><p class="note" style="margin:0 0 10px">ادخلي بإيميلك وكلمة السر عشان تنحفظ خطتك.</p>
+<form id="em-form" style="display:flex;flex-direction:column;gap:8px;text-align:right">
+<input type="email" id="em" autocomplete="username" inputmode="email" placeholder="الإيميل" required aria-label="الإيميل" dir="ltr" style="text-align:left">
+<input type="password" id="pw" autocomplete="current-password" placeholder="كلمة السر" required minlength="6" aria-label="كلمة السر" dir="ltr" style="text-align:left">
+<button class="btn" type="submit">دخول</button></form>
+<button class="btn ghost sm" id="reset-btn" type="button" style="margin-top:10px">أول مرة؟ أو نسيتِ كلمة السر؟</button>
+<p class="note" id="login-err" style="margin:8px 0 0"></p>
+<details style="margin-top:10px"><summary class="note" style="cursor:pointer">أو ادخلي بحساب Google</summary><button class="btn ghost sm" id="login-btn" type="button" style="margin-top:6px">دخول بحساب Google</button></details></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -661,6 +668,14 @@ auth.onAuthStateChanged(u=>{
     if(snap.exists){const d=snap.data();if(!(d.v>=11)){S=fixup(migrate(d));local(true);render();flush();return}if(!d.fix1){S=fixup(norm(d));local(true);render();flush();return}if(!EDIT){S=norm(d);local(true);render()}setSync("محفوظ ✓")}
     else{render();flush()}},e=>setSync("ما قدرت أوصل للبيانات: "+e.message));
 });
+const AERR={"auth/invalid-credential":"الإيميل أو كلمة السر غلط. إذا أول مرة، اضغطي «أول مرة؟» تحت.","auth/wrong-password":"كلمة السر غلط.","auth/user-not-found":"ما في حساب بهالإيميل. اضغطي «أول مرة؟».","auth/invalid-email":"الإيميل مكتوب غلط.","auth/too-many-requests":"محاولات كتير، استني شوي وجربي.","auth/operation-not-allowed":"لازم تفعّلي الدخول بالإيميل من Firebase أول.","auth/network-request-failed":"في مشكلة بالنت، جربي كمان مرة."};
+const aerr=e=>AERR[e&&e.code]||("ما زبط: "+(e&&e.message||""));
+$("em-form").addEventListener("submit",async e=>{e.preventDefault();e.stopPropagation();const em=$("em").value.trim(),pw=$("pw").value;$("login-err").textContent="لحظة…";
+  try{await auth.signInWithEmailAndPassword(em,pw);$("login-err").textContent=""}catch(err){
+    if(err.code==="auth/user-not-found"){try{await auth.createUserWithEmailAndPassword(em,pw);$("login-err").textContent="";return}catch(e2){$("login-err").textContent=aerr(e2);return}}
+    $("login-err").textContent=aerr(err)}},true);
+$("reset-btn").onclick=async()=>{const em=$("em").value.trim();if(!em){$("login-err").textContent="اكتبي إيميلك فوق أول، وبعدين اضغطي هون.";$("em").focus();return}
+  try{await auth.sendPasswordResetEmail(em);$("login-err").textContent="بعتنالك رسالة على "+em+" فيها رابط تحطي فيه كلمة سر. افتحيها، اختاري كلمة سر، وارجعي ادخلي فيها هون. (شوفي كمان بالـ Spam)"}catch(e){$("login-err").textContent=aerr(e)}};
 $("login-btn").onclick=async()=>{const p=new firebase.auth.GoogleAuthProvider();
   try{await auth.signInWithPopup(p)}catch(e){if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")auth.signInWithRedirect(p);else $("login-err").textContent="ما زبط الدخول: "+e.message}};
 render();
